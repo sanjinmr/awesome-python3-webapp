@@ -1,11 +1,18 @@
 #！、user/bin/env python3
 #-*- coding: utf-8 -*-
 
-from user import user
+import orm
+from models import User, Blog, Comment
 
-#创建实例：
-user = User(id=123, name='Michael')
-#存入数据库
-user.insert()
-#查询所有User对象：
-users = User.findAll()
+def test():
+    yield from orm.create_pool(user='www-data', password='www-data', data='awesome')
+
+    u = User(name='Test', email='test@example.com', passwd='1234567890', image='about:blank')
+
+    yield from u.save()
+
+for in test():
+
+    pass
+
+#bottom
