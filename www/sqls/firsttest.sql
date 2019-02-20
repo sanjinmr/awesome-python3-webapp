@@ -1,4 +1,4 @@
--- schema.sql
+-- firsttest.sql
 
 drop database if exists firsttest;
 
