@@ -125,17 +125,32 @@ def index(request):
 	
 @asyncio.coroutine
 def init(loop):
+	await orm.create_pool(
+		loop=loop, 
+		host='127.0.0.1', 
+		port=3306, 
+		user='www', 
+		password='www', 
+		db='awesome'
+	)
+	
 	app = web.Application(loop=loop， middlewares=[
 		logger_factory, response_factory
 	])
+	
 	#app = web_runner.AppRunner(app=app).app()
+	
 	#加入jinja2模块的支持
 	init_jinja2(app, filters=dict(datetime=datetime_filter))
+	
 	#自动把handler模块的所有符合条件的函数注册了
 	add_routes(app, 'handlers')
+	
 	add_static(app)
+	
 	srv = yield from loop.create_server(app.make_handler(), '127.0.0.1', 9000)
 	logging.info('server started at http://127.0.0.1:90000...')
+	
 	return srv
 
 loop = asyncio.get_event_loop()
