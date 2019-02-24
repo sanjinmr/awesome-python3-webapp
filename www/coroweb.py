@@ -91,6 +91,8 @@ def has_request_args(fn):
 	
 
 #处理request的函数，其实是转换url处理函数的一个函数
+#equestHandler目的就是从URL函数中分析其需要接收的参数，
+#从request中获取必要的参数，调用URL函数，然后把结果转换为web.Response对象
 class RequestHandler(Object):
 
 	#构造函数初始化时调用
@@ -158,7 +160,7 @@ class RequestHandler(Object):
 		#调用fn函数，并将**kw参数传给fn函数处理，且得到返回的response
 		try:
 			r = await self._func(**kw)
-			return 
+			return r
 		except APIError as e:
 			return dict(error=e.error, data=e.data, message=e.message)
 			
@@ -200,6 +202,7 @@ def add_static(app):
 	logging.info('add static %s ==> %s' % ('/static/', path))
 		
 
+#编写一个add_route函数，用来注册一个URL处理函数
 #从url函数中获取方法和路径信息，并检查协程，然后：
 #设置路由：app.router.add_route(method, path, handlerFunc)
 def add_route(app, fn):
@@ -223,6 +226,12 @@ def add_route(app, fn):
 	app.router.add_route(method, path, RequestHandler(app, fn))
 	
 
+#把很多次add_route()注册的调用：
+#add_route(app, handles.index)
+#add_route(app, handles.blog)
+#add_route(app, handles.create_comment)
+#变为自动扫描：add_routes(app, 'handlers')
+#即自动把handler模块的所有符合条件的函数注册了
 def add_routes(app, module_name):
 	n = module_name.rfind('.')
 	if n = (-1):
