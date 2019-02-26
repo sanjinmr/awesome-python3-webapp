@@ -19,6 +19,8 @@ import orm
 
 from coroweb import add_routes, add_static
 
+from config import configs
+
 
 def init_jinja2(app, **kw):
 	logging.info('init jinja2...')
@@ -125,6 +127,7 @@ def index(request):
 	
 @asyncio.coroutine
 def init(loop):
+	'''
 	await orm.create_pool(
 		loop=loop, 
 		host='127.0.0.1', 
@@ -133,6 +136,9 @@ def init(loop):
 		password='www', 
 		db='awesome'
 	)
+	'''
+	
+	await orm.create_pool(loop = loop, **configs.db)
 	
 	app = web.Application(loop=loop， middlewares=[
 		logger_factory, response_factory
