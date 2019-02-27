@@ -32,20 +32,20 @@ class Dict(dict):
 def merge(defaults, override):
 	r = {}
 	for k, v in defaults.items():
-	if k in override:
-		if isinstance(v, dict):
-			r[k] = merge(v, override[k])
+		if k in override:
+			if isinstance(v, dict):
+				r[k] = merge(v, override[k])
+			else:
+				r[k] = override[k]
 		else:
-			r[k] = override[k]
-	else:
-		r[k] = v
+			r[k] = v
 	return r
 		
 def toDict(d):
 	D = Dict()
 	for k, v in d.items():
 		if isinstance(v, dict):
-			D[k] = toDict[v]
+			D[k] = toDict(v)
 		else:
 			D[k] = v
 	return D

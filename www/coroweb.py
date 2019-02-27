@@ -45,8 +45,8 @@ def get_required_kw_args(fn):
 	args = []
 	params = inspect.signature(fn).parameters
 	for name, param in params.items():
-		if param.kind == inspect.Parameter.KEYWORD_ONLY  #不可变
-		and param.default == inspect.Parameter.empty: #没有默认值
+		#不可变且没有默认值
+		if param.kind == inspect.Parameter.KEYWORD_ONLY and param.default == inspect.Parameter.empty: 
 			args.append(name)
 	return tuple(args)
 
@@ -67,7 +67,7 @@ def has_named_kw_args(fn):
 			return True
 
 #判断函数是否含有可变关键字参数
-def has_var_kw_arg(fn):
+def has_var_kw_args(fn):
 	params = inspect.signature(fn).parameters
 	for name, param in params.items():
 		if param.kind == inspect.Parameter.VAR_KEYWORD:
@@ -93,7 +93,7 @@ def has_request_args(fn):
 #处理request的函数，其实是转换url处理函数的一个函数
 #equestHandler目的就是从URL函数中分析其需要接收的参数，
 #从request中获取必要的参数，调用URL函数，然后把结果转换为web.Response对象
-class RequestHandler(Object):
+class RequestHandler(object):
 
 	#构造函数初始化时调用
 	#RequestHandler在add_route的时候调用：
@@ -101,16 +101,17 @@ class RequestHandler(Object):
 	def __init__(self, app, fn):
 		self._app = app
 		self._func = fn
-		self._has_request_arg = has_request_arg(fn)
-		self._has_var_kw_arg = has_var_kw_arg(fn)
-		sefl._has_named_kw_args = has_named_kw_args(fn)
+		self._has_request_arg = has_request_args(fn)
+		self._has_var_kw_arg = has_var_kw_args(fn)
+		self._has_named_kw_args = has_named_kw_args(fn)
 		self._named_kw_args = get_named_kw_args(fn)
 		self._required_kw_args = get_required_kw_args(fn)
 		
 	#定义该类的实例可以作为一个函数被调用，调用的函数参数，如__call__描述
 	#该函数在factorys的response_factory调用:
 	#r = await handler(request)
-	async def __call__(self, request):
+	@asyncio.coroutine
+	def __call__(self, request):
 	
 		kw = None
 		
@@ -121,13 +122,13 @@ class RequestHandler(Object):
 			if request.method == 'POST':
 				kw = find_post_kw(request, kw)
 			#如果是GET方法
-			if requst.method == 'GET'
+			if requst.method == 'GET':
 				kw = find_get_kw(request, kw)
 		
 		#如果参数为空，参数设为路由路径的参数，即request.match_info
 		if kw is None: #如果POST参数和GET参数为空
 			kw = dict(**request.match_info)
-		else #如果POST参数和GET参数不为空
+		else: #如果POST参数和GET参数不为空
 			if not self._has_var_kw_arg and self._named_kw_args:
 				#remove all unamed kw:
 				copy = dict()
@@ -159,11 +160,12 @@ class RequestHandler(Object):
 		
 		#调用fn函数，并将**kw参数传给fn函数处理，且得到返回的response
 		try:
-			r = await self._func(**kw)
+			r = yield from self._func(**kw)
 			return r
 		except APIError as e:
 			return dict(error=e.error, data=e.data, message=e.message)
 			
+	@asyncio.coroutine
 	def find_post_kw(request, kw):
 
 		if not request.content_type:
@@ -171,14 +173,13 @@ class RequestHandler(Object):
 		ct = request.content_type.lower()
 		
 		if ct.startswith('applicatiion/json'):
-			params = await request.json()
+			params = yield from request.json()
 			if not isinstance(params, dict):
 				return web.HTTPBadRequest('JSON body must be object.')
 			kw = params
 		
-		elif ct.startswith('application/x-www-form-urlencoded')
-		or ct.startswith('multipart/form-data'):
-			params = await request.post()
+		elif ct.startswith('application/x-www-form-urlencoded') or ct.startswith('multipart/form-data'):
+			params = yield from request.post()
 			kw = dict(**params)
 
 		else:
@@ -186,6 +187,7 @@ class RequestHandler(Object):
 		
 		return kw
 	
+	@asyncio.coroutine
 	def find_get_kw(request, kw):
 		qs = request.query_string
 		if qs:
@@ -211,16 +213,15 @@ def add_route(app, fn):
 	path = getattr(fn, '__route__', None)
 	
 	#如果路径或者方法名称为空，返回错误提示
-	if path is None or method id None:
+	if path is None or method is None:
 		raise ValueError('@get or @post not defined in %s：' % str(fn))
 		
 	#如果不是协程函数，且不是装饰函数，将其加入协程
 	if not asyncio.iscoroutinefunction(fn) and not inspect.isgeneratorfunction(fn):
 		fn = asyncio.coroutine(fn)
 
-	logging.info('add route %s %s => %s(%s)' % 
-	(method, path, fn.__name__, ','.join(inspect.signature(fn).parameters.keys()))
-	
+	logging.info('add route %s %s => %s(%s)' % (method, path, fn.__name__, ' , '.join(inspect.signature(fn).parameters.keys())))
+
 	#将url处理函数通过RequestHandler处理后，返回RequestHandler的实例handler
 	#即以handler作为函数对象传递给add_route()的第三个参数
 	app.router.add_route(method, path, RequestHandler(app, fn))
@@ -234,7 +235,7 @@ def add_route(app, fn):
 #即自动把handler模块的所有符合条件的函数注册了
 def add_routes(app, module_name):
 	n = module_name.rfind('.')
-	if n = (-1):
+	if n == (-1):
 		mod = __import__(module_name, globals(), locals())
 	else:
 		name =  module_name[n+1:]
