@@ -30,11 +30,11 @@ def init_jinja2(app, **kw):
 		block_end_string = kw.get('block_end_string', '%}'),
 		variable_start_string = kw.get('variable_start_string', '{{'),
 		variable_end_string = kw.get('variable_end_string', '}}'),
-		auto_reload = kw.get('auto_reload', True)		
+		auto_reload = kw.get('auto_reload', True)
 	)
 	path = kw.get('path', None)
 	if path is None:
-		path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'template')
+		path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
 	logging.info('set jinja2 template path: %s' % path)
 	env = Environment(loader=FileSystemLoader(path), **options)
 	filters = kw.get('filters', None)
@@ -42,7 +42,7 @@ def init_jinja2(app, **kw):
 		for name, f in filters.items():
 			env.filters[name] = f
 	app['__templating__'] = env
-	
+
 def datetime_filter(t):
 	delta = int(time.time() - t)
 	if delta < 60:
@@ -55,7 +55,7 @@ def datetime_filter(t):
 		return u'%s天前' % (delta // 86400)
 	dt = datetime.fromtimestamp(t)
 	return u'%s年%s月%s日' % (dt.year, dt.month, dt.day)
-	
+
 async def logger_factory(app, handler):
 	async def logger(request):
 		logging.info('Request: %s %s' % (request.method, request.path))
@@ -74,29 +74,29 @@ async def data_factory(app, handler):
 				logging.info('request form: %s' % str(request.__data__))
 		return (await handler(request))
 	return parse_data
-	
-	
+
+
 async def response_factory(app, handler):
 	async def response(request):
 		logging.info('Response handler...')
 		r = await handler(request)
-		
-		
+
+
 		if isinstance(r, web.StreamResponse):
 			return r
-		
+
 		if isinstance(r, bytes):
 			resp = web.Response(body=r)
 			resp.content_type = 'application/octet-stream'
 			return resp
-	
+
 		if isinstance(r, str):
 			if r.startswith('redirect:'):
 				return web.HTTPFound(r[9:])
 			resp = web.Response(body=r.encode('utf-8'))
 			resp.content_type = 'text/html;charset=utf-8'
 			return resp
-	
+
 		if isinstance(r, dict):
 			template = r.get('__template__')
 			if template is None:
@@ -107,10 +107,10 @@ async def response_factory(app, handler):
 				resp = web.Response(body=app['__templating__'].get_template(template).render(**r).encode('utf-8'))
 				resp.content_type = 'text/html;charset=utf-8'
 				return resp
-	
+
 		if isinstance(r, int) and r >= 100 and r < 600:
 			return web.Response(r)
-	
+
 		if isinstance(r, tuple) and len(r) == 2:
 				t, m = r
 				if isinstance(t, int) and t >= 100 and t < 600:
@@ -119,44 +119,43 @@ async def response_factory(app, handler):
 		resp = web.Response(body=str(r).encode('utf-8'))
 		resp.content_type = 'text/plain;charset=utf-8'
 		return resp
-			
+
 	return response
-		
+
 def index(request):
 	return web.Response(body=b'<h1>Awesome<h1>', content_type='text/html')
-	
-@asyncio.coroutine
-def init(loop):
+
+async def init(loop):
 	'''
 	await orm.create_pool(
-		loop=loop, 
-		host='127.0.0.1', 
-		port=3306, 
-		user='www', 
-		password='www', 
+		loop=loop,
+		host='127.0.0.1',
+		port=3306,
+		user='www',
+		password='www',
 		db='awesome'
 	)
 	'''
-	
-	yield from orm.create_pool(loop = loop, **configs.db)
-	
+
+	await orm.create_pool(loop = loop, **configs.db)
+
 	app = web.Application(loop=loop, middlewares=[
 		logger_factory, response_factory
 	])
-	
+
 	#app = web_runner.AppRunner(app=app).app()
-	
+
 	#加入jinja2模块的支持
 	init_jinja2(app, filters=dict(datetime=datetime_filter))
-	
+
 	#自动把handler模块的所有符合条件的函数注册了
 	add_routes(app, 'handlers')
-	
+
 	add_static(app)
-	
-	srv = yield from loop.create_server(app.make_handler(), '127.0.0.1', 9000)
+
+	srv = await loop.create_server(app.make_handler(), '127.0.0.1', 9000)
 	logging.info('server started at http://127.0.0.1:90000...')
-	
+
 	return srv
 
 loop = asyncio.get_event_loop()
