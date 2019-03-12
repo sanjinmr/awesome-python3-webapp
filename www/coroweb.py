@@ -107,6 +107,36 @@ class RequestHandler(object):
 		self._named_kw_args = get_named_kw_args(fn)
 		self._required_kw_args = get_required_kw_args(fn)
 
+	async def find_post_kw(self, request, kw):
+
+		if not request.content_type:
+			return web.HttpBadReqeust('Missing Content-Type')
+		ct = request.content_type.lower()
+
+		if ct.startswith('applicatiion/json'):
+			params = await request.json()
+			if not isinstance(params, dict):
+				return web.HTTPBadRequest('JSON body must be object.')
+			kw = params
+
+		elif ct.startswith('application/x-www-form-urlencoded') or ct.startswith('multipart/form-data'):
+			params = await request.post()
+			kw = dict(**params)
+
+		else:
+			return web.HTTPBadRequest('Unsupportd Content-Type: %s')
+
+		return kw
+
+	def find_get_kw(self, request, kw):
+		qs = request.query_string
+		if qs:
+			kw = dict()
+			for k, v in parse.parse_qs(qs, True).items():
+				kw[k] = v[0]
+
+		return kw
+		
 	#定义该类的实例可以作为一个函数被调用，调用的函数参数，如__call__描述
 	#该函数在factorys的response_factory调用:
 	#r = await handler(request)
@@ -117,10 +147,10 @@ class RequestHandler(object):
 		if self._has_var_kw_arg or self._has_named_kw_args or self._required_kw_args:
 			#如果是POST方法
 			if request.method == 'POST':
-				kw = find_post_kw(request, kw)
+				kw = self.find_post_kw(request, kw)
 			#如果是GET方法
-			if requst.method == 'GET':
-				kw = find_get_kw(request, kw)
+			if request.method == 'GET':
+				kw = self.find_get_kw(request, kw)
 
 		#如果参数为空，参数设为路由路径的参数，即request.match_info
 		if kw is None: #如果POST参数和GET参数为空
@@ -161,36 +191,6 @@ class RequestHandler(object):
 			return r
 		except APIError as e:
 			return dict(error=e.error, data=e.data, message=e.message)
-
-	async def find_post_kw(request, kw):
-
-		if not request.content_type:
-			return web.HttpBadReqeust('Missing Content-Type')
-		ct = request.content_type.lower()
-
-		if ct.startswith('applicatiion/json'):
-			params = await request.json()
-			if not isinstance(params, dict):
-				return web.HTTPBadRequest('JSON body must be object.')
-			kw = params
-
-		elif ct.startswith('application/x-www-form-urlencoded') or ct.startswith('multipart/form-data'):
-			params = await request.post()
-			kw = dict(**params)
-
-		else:
-			return web.HTTPBadRequest('Unsupportd Content-Type: %s')
-
-		return kw
-
-	async def find_get_kw(request, kw):
-		qs = request.query_string
-		if qs:
-			kw = dict()
-			for k, v in parse.parse_qs(qs, True).items():
-				kw[k] = v[0]
-
-		return kw
 
 
 def add_static(app):
